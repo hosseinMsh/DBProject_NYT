@@ -1,0 +1,30 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h1>Batch Status</h1>
+  <div class="card">
+    <p><strong>Status:</strong> {{ batch.status }}</p>
+    <p><strong>Progress:</strong> {{ batch.done }} / {{ batch.total }}</p>
+    <a href="{% url 'process_urls' %}" role="button">Process Pending Now</a>
+  </div>
+  <table>
+    <thead>
+      <tr><th>#</th><th>URL</th><th>Kind</th><th>Status</th><th>Rows</th><th>Error</th></tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td style="max-width:500px;word-break:break-all">{{ it.url }}</td>
+        <td>{{ it.kind }}</td>
+        <td>{{ it.status }}</td>
+        <td>{{ it.processed_rows }}</td>
+        <td><pre style="white-space:pre-wrap">{{ it.error_message }}</pre></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p><a href="{% url 'upload_urls' %}">Back to URL form</a></p>
+</div>
+{% endblock %}

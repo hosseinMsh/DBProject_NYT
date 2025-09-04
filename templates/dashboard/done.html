@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin:0 0 1rem 0; font-weight:800;">نتیجه پردازش</h1>
+<div class="card" style="display:grid; gap:.5rem;">
+  <div><strong>وضعیت:</strong> {{ uf.status }}</div>
+  <div><strong>سطرهای پردازش‌شده:</strong> {{ uf.processed_rows }}</div>
+  {% if uf.error_message %}
+    <details>
+      <summary>جزئیات خطا</summary>
+      <pre style="white-space:pre-wrap; margin-top:.5rem;">{{ uf.error_message }}</pre>
+    </details>
+  {% endif %}
+  <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.5rem;">
+    <a href="{% url 'upload_page' %}" class="btn btn-ghost">بازگشت</a>
+    <a href="{% url 'dashboard_index' %}" class="btn btn-primary">رفتن به داشبورد</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,59 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h1>Dashboard</h1>
+  <p>Load taxi zones CSV and trip Parquet files, then explore charts.</p>
+  <div class="grid">
+    <div class="col-6 card"><h5>Trips per day</h5><canvas id="chartDailyTrips"></canvas></div>
+    <div class="col-6 card"><h5>Avg fare by vendor</h5><canvas id="chartAvgFareVendor"></canvas></div>
+    <div class="col-6 card"><h5>Total distance by pickup (Top 50)</h5><canvas id="chartTotalDistPU"></canvas></div>
+    <div class="col-6 card"><h5>Avg tip by payment type</h5><canvas id="chartAvgTipPay"></canvas></div>
+    <div class="col-6 card"><h5>Monthly revenue by dropoff</h5><canvas id="chartMonthlyRevDO"></canvas></div>
+    <div class="col-6 card"><h5>Rolling 7-day avg trips</h5><canvas id="chartRolling7d"></canvas></div>
+    <div class="col-6 card"><h5>Top 10 pairs by revenue</h5><canvas id="chartTopPairs"></canvas></div>
+    <div class="col-6 card"><h5>Daily P90 distance</h5><canvas id="chartP90"></canvas></div>
+    <div class="col-12 card"><h5>Neighborhood tip ranking (Top 50)</h5><canvas id="chartTipRank"></canvas></div>
+    <div class="col-12 card"><h5>Vendors above daily 95th percentile</h5><canvas id="chartVendor95"></canvas></div>
+  </div>
+</div>
+<script>
+  async function fetchJSON(url){ const r = await fetch(url); return await r.json(); }
+  function makeLineChart(ctx, labels, data, label){ return new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label, data }] } }); }
+  function makeBarChart(ctx, labels, data, label){ return new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label, data }] } }); }
+
+  (async () => {
+    const daily = await fetchJSON('/api/daily-trips/');
+    makeLineChart(document.getElementById('chartDailyTrips'), daily.map(d=>d.d), daily.map(d=>d.trips), 'Trips');
+
+    const avgFare = await fetchJSON('/api/avg-fare-by-vendor/');
+    makeBarChart(document.getElementById('chartAvgFareVendor'), avgFare.map(d=>'Vendor '+d.vendor_id), avgFare.map(d=>Number(d.avg_fare)), 'Avg Fare');
+
+    const distPU = await fetchJSON('/api/total-distance-by-pickup/');
+    makeBarChart(document.getElementById('chartTotalDistPU'), distPU.map(d=>d.pu_location_id), distPU.map(d=>Number(d.total_miles)), 'Miles');
+
+    const avgTip = await fetchJSON('/api/avg-tip-by-payment/');
+    makeBarChart(document.getElementById('chartAvgTipPay'), avgTip.map(d=>'Pay '+d.payment_type), avgTip.map(d=>Number(d.avg_tip)), 'Avg Tip');
+
+    const monthlyRev = await fetchJSON('/api/monthly-revenue-by-dropoff/');
+    makeBarChart(document.getElementById('chartMonthlyRevDO'), monthlyRev.map(d=>d.month.split('T')[0]+' / '+d.do_location_id), monthlyRev.map(d=>Number(d.revenue)), 'Revenue');
+
+    const roll = await fetchJSON('/api/rolling-7day-avg-trips/');
+    makeLineChart(document.getElementById('chartRolling7d'), roll.map(d=>d.d), roll.map(d=>Number(d.avg_7d)), 'Avg 7d');
+
+    const pairs = await fetchJSON('/api/top10-pairs-by-revenue/');
+    makeBarChart(document.getElementById('chartTopPairs'), pairs.map(d=>d.pu_location_id+'→'+d.do_location_id), pairs.map(d=>Number(d.revenue)), 'Revenue');
+
+    const p90 = await fetchJSON('/api/daily-p90-distance/');
+    makeLineChart(document.getElementById('chartP90'), p90.map(d=>d.d), p90.map(d=>Number(d.p90)), 'P90');
+
+    const tipRank = await fetchJSON('/api/neighborhood-tip-ranking/');
+    makeBarChart(document.getElementById('chartTipRank'), tipRank.map(d=>d.zone), tipRank.map(d=>Number(d.tip_ratio)), 'Tip Ratio');
+
+    const v95 = await fetchJSON('/api/vendor-95th-percentile-days/');
+    makeBarChart(document.getElementById('chartVendor95'), v95.map(d=>d.d+' / V'+d.vendor_id), v95.map(d=>Number(d.trips)), 'Trips > P95');
+  })();
+</script>
+<script src="https://cdn.shraif.ir/cdn/ictc/pinghub/js/charttopng.js"></script>
+
+{% endblock %}
