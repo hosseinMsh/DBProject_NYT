@@ -1,0 +1,71 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h1>Optimized (v2)</h1>
+  <p>This page calls <code>/api/v2/...</code> endpoints and shows execution time per query. Use <code>?optimized=1</code> in the URL to switch to optimized tables (if present).</p>
+  <div class="grid">
+    <div class="col-6 card"><h5>Trips per day</h5><canvas id="c1"></canvas><small id="m1"></small></div>
+    <div class="col-6 card"><h5>Avg fare by vendor</h5><canvas id="c2"></canvas><small id="m2"></small></div>
+    <div class="col-6 card"><h5>Total distance by pickup</h5><canvas id="c3"></canvas><small id="m3"></small></div>
+    <div class="col-6 card"><h5>Avg tip by payment</h5><canvas id="c4"></canvas><small id="m4"></small></div>
+    <div class="col-6 card"><h5>Monthly revenue by dropoff</h5><canvas id="c5"></canvas><small id="m5"></small></div>
+    <div class="col-6 card"><h5>Rolling 7-day avg trips</h5><canvas id="c6"></canvas><small id="m6"></small></div>
+    <div class="col-6 card"><h5>Top 10 pairs by revenue</h5><canvas id="c7"></canvas><small id="m7"></small></div>
+    <div class="col-6 card"><h5>Daily P90 distance</h5><canvas id="c8"></canvas><small id="m8"></small></div>
+    <div class="col-12 card"><h5>Neighborhood tip ranking</h5><canvas id="c9"></canvas><small id="m9"></small></div>
+    <div class="col-12 card"><h5>Vendors above daily 95th percentile</h5><canvas id="c10"></canvas><small id="m10"></small></div>
+  </div>
+</div>
+<script>
+  async function fetchJSON(url){ const r = await fetch(url); return await r.json(); }
+  function makeLineChart(ctx, labels, data, label){ return new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label, data }] } }); }
+  function makeBarChart(ctx, labels, data, label){ return new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label, data }] } }); }
+  function meta(el, ms, rows){ el.innerText = `Elapsed: ${ms} ms • Rows: ${rows}`; }
+  const q = window.location.search; // ?optimized=1
+
+  (async () => {
+    let r;
+
+    r = await fetchJSON('/api/v2/daily-trips/'+q); 
+    makeLineChart(document.getElementById('c1'), r.data.map(d=>d.d), r.data.map(d=>d.trips), 'Trips');
+    meta(document.getElementById('m1'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/avg-fare-by-vendor/'+q);
+    makeBarChart(document.getElementById('c2'), r.data.map(d=>'Vendor '+d.vendor_id), r.data.map(d=>Number(d.avg_fare)), 'Avg Fare');
+    meta(document.getElementById('m2'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/total-distance-by-pickup/'+q);
+    makeBarChart(document.getElementById('c3'), r.data.map(d=>d.pu_location_id), r.data.map(d=>Number(d.total_miles)), 'Miles');
+    meta(document.getElementById('m3'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/avg-tip-by-payment/'+q);
+    makeBarChart(document.getElementById('c4'), r.data.map(d=>'Pay '+d.payment_type), r.data.map(d=>Number(d.avg_tip)), 'Avg Tip');
+    meta(document.getElementById('m4'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/monthly-revenue-by-dropoff/'+q);
+    makeBarChart(document.getElementById('c5'), r.data.map(d=>d.month.split('T')[0]+' / '+d.do_location_id), r.data.map(d=>Number(d.revenue)), 'Revenue');
+    meta(document.getElementById('m5'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/rolling-7day-avg-trips/'+q);
+    makeLineChart(document.getElementById('c6'), r.data.map(d=>d.d), r.data.map(d=>Number(d.avg_7d)), 'Avg 7d');
+    meta(document.getElementById('m6'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/top10-pairs-by-revenue/'+q);
+    makeBarChart(document.getElementById('c7'), r.data.map(d=>d.pu_location_id+'→'+d.do_location_id), r.data.map(d=>Number(d.revenue)), 'Revenue');
+    meta(document.getElementById('m7'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/daily-p90-distance/'+q);
+    makeLineChart(document.getElementById('c8'), r.data.map(d=>d.d), r.data.map(d=>Number(d.p90)), 'P90');
+    meta(document.getElementById('m8'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/neighborhood-tip-ranking/'+q);
+    makeBarChart(document.getElementById('c9'), r.data.map(d=>d.zone), r.data.map(d=>Number(d.tip_ratio)), 'Tip Ratio');
+    meta(document.getElementById('m9'), r.elapsed_ms, r.rows);
+
+    r = await fetchJSON('/api/v2/vendor-95th-percentile-days/'+q);
+    makeBarChart(document.getElementById('c10'), r.data.map(d=>d.d+' / V'+d.vendor_id), r.data.map(d=>Number(d.trips)), 'Trips > P95');
+    meta(document.getElementById('m10'), r.elapsed_ms, r.rows);
+  })();
+</script>
+{% endblock %}

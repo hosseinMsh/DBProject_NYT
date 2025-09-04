@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h1>Compare v1 vs v2 </h1>
+  <p>v2 return server-measured elapsed; v1 is measured on client.  Use <code>?optimized=1</code> if you want v2 to target optimized tables.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Query</th>
+        <th>v1 (ms)</th>
+        <th>v2 (ms)</th>
+        <th>%Δ v2 vs v1</th>
+        <th>Rows (v1)</th>
+        <th>Rows (v2)</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+<script>
+  async function fetchJSON(url){ const r = await fetch(url); return await r.json(); }
+  async function timeFetch(url){ const t0 = performance.now(); const data = await fetchJSON(url); return {ms: Math.round(performance.now()-t0), data}; }
+  function pctDelta(newMs, baseMs){
+    if (!baseMs || baseMs<=0) return "-";
+    const p = ((newMs - baseMs) / baseMs) * 100;
+    return Math.round(p);
+  }
+  function coloredTd(p){
+    if (p === "-") return `<td>-</td>`;
+    const color = p < 0 ? "#16a34a" : (p > 0 ? "#dc2626" : "#6b7280");
+    const sign = p>0 ? "+" : "";
+    return `<td style="color:${color};font-weight:600">${sign}${p}%</td>`;
+  }
+
+  const endpoints = [
+    ["daily-trips","/api/v1/daily-trips/","/api/v2/daily-trips/"],
+    ["avg-fare-by-vendor","/api/v1/avg-fare-by-vendor/","/api/v2/avg-fare-by-vendor/"],
+    ["total-distance-by-pickup","/api/v1/total-distance-by-pickup/","/api/v2/total-distance-by-pickup/"],
+    ["avg-tip-by-payment","/api/v1/avg-tip-by-payment/","/api/v2/avg-tip-by-payment/"],
+    ["monthly-revenue-by-dropoff","/api/v1/monthly-revenue-by-dropoff/","/api/v2/monthly-revenue-by-dropoff/"],
+    ["rolling-7day-avg-trips","/api/v1/rolling-7day-avg-trips/","/api/v2/rolling-7day-avg-trips/"],
+    ["top10-pairs-by-revenue","/api/v1/top10-pairs-by-revenue/","/api/v2/top10-pairs-by-revenue/"],
+    ["daily-p90-distance","/api/v1/daily-p90-distance/","/api/v2/daily-p90-distance/"],
+    ["neighborhood-tip-ranking","/api/v1/neighborhood-tip-ranking/","/api/v2/neighborhood-tip-ranking/"],
+    ["vendor-95th-percentile-days","/api/v1/vendor-95th-percentile-days/","/api/v2/vendor-95th-percentile-days/"]
+  ];
+
+  (async () => {
+    const q = window.location.search; // pass ?optimized=1 to v2 only
+    const body = document.getElementById('rows');
+
+    for (const [name, u1, u2] of endpoints){
+      const r1 = await timeFetch(u1);
+      const r2 = await fetchJSON(u2 + q);
+
+      const p2 = pctDelta(r2.elapsed_ms, r1.ms);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${name}</td>
+        <td>${r1.ms}</td>
+        <td>${Math.round(r2.elapsed_ms)}</td>
+        ${coloredTd(p2)}
+        <td>${Array.isArray(r1.data)?r1.data.length:(r1.data?.data?.length||"-")}</td>
+        <td>${r2.rows}</td>
+
+      `;
+      body.appendChild(tr);
+    }
+  })();
+</script>
+{% endblock %}
