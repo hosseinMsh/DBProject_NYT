@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h1>Dashboard (v1)</h1>
+  <p>This page uses /api/v1 endpoints and shows client-measured elapsed time.</p>
+  <div class="grid">
+    <div class="col-6 card"><h5>Trips per day</h5><canvas id="chartDailyTrips"></canvas><small id="m1"></small></div>
+    <div class="col-6 card"><h5>Avg fare by vendor</h5><canvas id="chartAvgFareVendor"></canvas><small id="m2"></small></div>
+    <div class="col-6 card"><h5>Total distance by pickup (Top 50)</h5><canvas id="chartTotalDistPU"></canvas><small id="m3"></small></div>
+    <div class="col-6 card"><h5>Avg tip by payment type</h5><canvas id="chartAvgTipPay"></canvas><small id="m4"></small></div>
+    <div class="col-6 card"><h5>Monthly revenue by dropoff</h5><canvas id="chartMonthlyRevDO"></canvas><small id="m5"></small></div>
+    <div class="col-6 card"><h5>Rolling 7-day avg trips</h5><canvas id="chartRolling7d"></canvas><small id="m6"></small></div>
+    <div class="col-6 card"><h5>Top 10 pairs by revenue</h5><canvas id="chartTopPairs"></canvas><small id="m7"></small></div>
+    <div class="col-6 card"><h5>Daily P90 distance</h5><canvas id="chartP90"></canvas><small id="m8"></small></div>
+    <div class="col-12 card"><h5>Neighborhood tip ranking (Top 50)</h5><canvas id="chartTipRank"></canvas><small id="m9"></small></div>
+    <div class="col-12 card"><h5>Vendors above daily 95th percentile</h5><canvas id="chartVendor95"></canvas><small id="m10"></small></div>
+  </div>
+</div>
+<script>
+  async function fetchJSON(url){ const r = await fetch(url); return await r.json(); }
+  async function timeFetch(url){ const t0 = performance.now(); const d = await fetchJSON(url); return {ms: Math.round(performance.now()-t0), data: d}; }
+  function makeLineChart(ctx, labels, data, label){ return new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label, data }] } }); }
+  function makeBarChart(ctx, labels, data, label){ return new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label, data }] } }); }
+  function meta(el, ms, rows){ el.innerText = `Elapsed: ${ms} ms • Rows: ${rows}`; }
+
+  (async () => {
+    let r;
+
+    r = await timeFetch('/api/v1/daily-trips/');
+    makeLineChart(document.getElementById('chartDailyTrips'), r.data.map(d=>d.d), r.data.map(d=>d.trips), 'Trips');
+    meta(document.getElementById('m1'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/avg-fare-by-vendor/');
+    makeBarChart(document.getElementById('chartAvgFareVendor'), r.data.map(d=>'Vendor '+d.vendor_id), r.data.map(d=>Number(d.avg_fare)), 'Avg Fare');
+    meta(document.getElementById('m2'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/total-distance-by-pickup/');
+    makeBarChart(document.getElementById('chartTotalDistPU'), r.data.map(d=>d.pu_location_id), r.data.map(d=>Number(d.total_miles)), 'Miles');
+    meta(document.getElementById('m3'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/avg-tip-by-payment/');
+    makeBarChart(document.getElementById('chartAvgTipPay'), r.data.map(d=>'Pay '+d.payment_type), r.data.map(d=>Number(d.avg_tip)), 'Avg Tip');
+    meta(document.getElementById('m4'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/monthly-revenue-by-dropoff/');
+    makeBarChart(document.getElementById('chartMonthlyRevDO'), r.data.map(d=>d.month.split('T')[0]+' / '+d.do_location_id), r.data.map(d=>Number(d.revenue)), 'Revenue');
+    meta(document.getElementById('m5'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/rolling-7day-avg-trips/');
+    makeLineChart(document.getElementById('chartRolling7d'), r.data.map(d=>d.d), r.data.map(d=>Number(d.avg_7d)), 'Avg 7d');
+    meta(document.getElementById('m6'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/top10-pairs-by-revenue/');
+    makeBarChart(document.getElementById('chartTopPairs'), r.data.map(d=>d.pu_location_id+'→'+d.do_location_id), r.data.map(d=>Number(d.revenue)), 'Revenue');
+    meta(document.getElementById('m7'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/daily-p90-distance/');
+    makeLineChart(document.getElementById('chartP90'), r.data.map(d=>d.d), r.data.map(d=>Number(d.p90)), 'P90');
+    meta(document.getElementById('m8'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/neighborhood-tip-ranking/');
+    makeBarChart(document.getElementById('chartTipRank'), r.data.map(d=>d.zone), r.data.map(d=>Number(d.tip_ratio)), 'Tip Ratio');
+    meta(document.getElementById('m9'), r.ms, r.data.length);
+
+    r = await timeFetch('/api/v1/vendor-95th-percentile-days/');
+    makeBarChart(document.getElementById('chartVendor95'), r.data.map(d=>d.d+' / V'+d.vendor_id), r.data.map(d=>Number(d.trips)), 'Trips > P95');
+    meta(document.getElementById('m10'), r.ms, r.data.length);
+  })();
+</script>
+{% endblock %}
