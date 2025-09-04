@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-_+$*6*6)omtrh@y^vobns2y(w7cqnw=7$j&tvm3&w0%5xfmgr4
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['https://*']
+CSRF_TRUSTED_ORIGINS = ['https://db.shraif.ir']
 # Application definition
 
 INSTALLED_APPS = [
