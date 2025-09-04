@@ -1,21 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 style="margin:0 0 1rem 0; font-weight:800;">آپلود تکی</h1>
-<form method="post" enctype="multipart/form-data" class="card" style="display:grid; gap:.75rem;">
-  {% csrf_token %}
-  <label for="kind">نوع فایل</label>
-  <select name="kind" id="kind">
-    <option value="parquet">Parquet (Trips)</option>
-    <option value="zones_csv">CSV (Taxi Zones)</option>
-  </select>
-
-  <label for="file">انتخاب فایل</label>
-  <input type="file" name="file" id="file" required />
-
-  <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
-    <button type="submit" class="btn btn-primary">آپلود و پردازش</button>
-    <a href="/ingest/urls/" class="btn btn-ghost">آپلود گروهی</a>
-  </div>
-  <small style="color:var(--muted);">فرمت Parquet برای سفرها و CSV برای مناطق تاکسی.</small>
-</form>
+<div class="container">
+  <h1>Upload Single File</h1>
+  <form method="post" enctype="multipart/form-data" class="card">
+    {% csrf_token %}
+    <label for="kind">File kind</label>
+    <select name="kind" id="kind">
+      <option value="parquet">Parquet (Trips)</option>
+      <option value="zones_csv">CSV (Taxi Zones)</option>
+    </select>
+    <label for="file">Choose file</label>
+    <input type="file" name="file" id="file" required />
+    <button type="submit">Upload & Process</button>
+  </form>
+  <p>Or use <a href="/ingest/urls/">Bulk URL Upload</a> to paste many links.</p>
+</div>
 {% endblock %}
