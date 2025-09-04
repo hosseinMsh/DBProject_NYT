@@ -1,5 +1,5 @@
 from django.urls import path
-from analytics.views import v1, v2, v3
+from analytics.views import v1, v2
 
 urlpatterns = [
     # v1 (legacy)
