@@ -153,7 +153,6 @@ def upload_status(request: HttpRequest, pk: int):
     return render(request, "dashboard/status.html", {"batch": batch, "items": items})
 
 
-@login_required(login_url='/admin/login/?next=/')
 def _download_to_temp(url: str) -> str:
     with requests.get(url, stream=True, timeout=120) as r:
         r.raise_for_status()
