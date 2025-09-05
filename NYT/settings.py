@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-_+$*6*6)omtrh@y^vobns2y(w7cqnw=7$j&tvm3&w0%5xfmgr4'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ['db.shraif.ir']
+ALLOWED_HOSTS = ['db.shraif.ir','*']
 CSRF_TRUSTED_ORIGINS = ['https://db.shraif.ir']
 # Application definition
 
@@ -118,8 +118,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-
+STATIC_ROOT = BASE_DIR / 'static'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+CELERY_TASK_TIME_LIMIT = 60 * 60 * 2 # 2 hour per task hard limit
+CELERY_TASK_SOFT_TIME_LIMIT = 55 * 60
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 50

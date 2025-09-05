@@ -8,3 +8,4 @@ media/
 staticfiles/
 */migrations/0*
 *.md
+static/admin
