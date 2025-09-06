@@ -1,10 +1,10 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpRequest, HttpResponseBadRequest
+from django.http import HttpRequest, HttpResponseBadRequest, JsonResponse
 from django.utils import timezone
 from datetime import timezone as tz
-
-from .models import UploadedFile, Trip, Location, URLBatch, URLItem
+from core.tasks import process_url_item
+from core.models import UploadedFile, Trip, Location, URLBatch, URLItem
 import csv, os, tempfile, requests
 import pyarrow.parquet as pq
 
