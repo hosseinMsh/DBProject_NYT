@@ -1,9 +1,10 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpRequest, HttpResponseBadRequest
+from django.http import HttpRequest, HttpResponseBadRequest, JsonResponse
 from django.utils import timezone
 from datetime import timezone as tz
-from .models import UploadedFile, Trip, Location, URLBatch, URLItem
+from core.tasks import process_url_item
+from core.models import UploadedFile, Trip, Location, URLBatch, URLItem
 import csv, os, tempfile, requests
 import pyarrow.parquet as pq
 
@@ -32,7 +33,7 @@ def _valid_trip_row(row: dict) -> bool:
 def _ingest_parquet(file_path: str) -> int:
     table = pq.read_table(file_path)
     total = 0
-    for batch in table.to_batches(max_chunksize=50000):
+    for batch in table.to_batches(max_chunksize=350000):
         pyd = batch.to_pydict()
         size = len(pyd.get("VendorID", []))
         objs = []
@@ -78,7 +79,8 @@ def _ingest_parquet(file_path: str) -> int:
                 total_amount=row["total_amount"],
             ))
         if objs:
-            Trip.objects.bulk_create(objs, batch_size=50000)
+            Trip.objects.bulk_create(objs, batch_size=350000)
+
             total += len(objs)
     return total
 
@@ -133,25 +135,48 @@ def process_upload(request: HttpRequest, pk: int):
 
 @login_required(login_url='/admin/login/?next=/')
 def upload_urls(request: HttpRequest):
+    # Create a batch and enqueue Celery tasks; then redirect to status page immediately
     if request.method == "POST":
         raw = request.POST.get("urls", "")
         urls = [u.strip() for u in raw.splitlines() if u.strip()]
-        if not urls: return HttpResponseBadRequest("No URLs provided")
-        batch = URLBatch.objects.create(status="processing", total=len(urls), done=0)
-        for u in urls:
-            kind = "parquet" if u.lower().endswith(".parquet") else (
-                "zones_csv" if u.lower().endswith(".csv") else "parquet")
-            URLItem.objects.create(batch=batch, url=u, kind=kind, status="pending")
-        return redirect("upload_status", pk=batch.pk)
-    return render(request, "dashboard/upload_urls.html", {})
+        if not urls:
+            return HttpResponseBadRequest("No URLs provided")
 
+        batch = URLBatch.objects.create(status="processing", total=len(urls), done=0)
+        items = []
+        for u in urls:
+            kind = "parquet" if u.lower().endswith(".parquet") else ("zones_csv" if u.lower().endswith(".csv") else "parquet")
+            items.append(URLItem(batch=batch, url=u, kind=kind, status="pending"))
+        URLItem.objects.bulk_create(items, batch_size=1000)
+
+        # Enqueue Celery tasks per item (lightweight loop)
+        for item_id in batch.items.values_list("id", flat=True):
+            process_url_item.delay(item_id)
+
+        return redirect("upload_status", pk=batch.pk)
+
+    return render(request, "dashboard/upload_urls.html", {})
 
 @login_required(login_url='/admin/login/?next=/')
 def upload_status(request: HttpRequest, pk: int):
+    # Render a page with polling JS; items themselves not heavy-rendered here
     batch = get_object_or_404(URLBatch, pk=pk)
-    items = batch.items.all().order_by("id")
-    return render(request, "dashboard/status.html", {"batch": batch, "items": items})
+    return render(request, "dashboard/status.html", {"batch": batch})
 
+@login_required(login_url='/admin/login/?next=/')
+def upload_status_api(request: HttpRequest, pk: int):
+    # Lightweight JSON for polling
+    batch = get_object_or_404(URLBatch, pk=pk)
+    items = list(batch.items.order_by("id").values("id", "url", "kind", "status", "processed_rows", "error_message"))
+    return JsonResponse({
+        "batch": {
+            "id": batch.id,
+            "status": batch.status,
+            "total": batch.total,
+            "done": batch.done,
+        },
+        "items": items
+    })
 
 def _download_to_temp(url: str) -> str:
     with requests.get(url, stream=True, timeout=120) as r:
@@ -178,7 +203,7 @@ def process_urls(request: HttpRequest):
                 rows = _ingest_zones_csv(path)
             else:
                 rows = _ingest_parquet(path)
-            item.processed_rows = rows;
+            item.processed_rows = rows
             item.status = "done"
             item.save(update_fields=["processed_rows", "status"])
         except Exception as e:
