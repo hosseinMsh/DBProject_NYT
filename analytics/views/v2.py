@@ -1,17 +1,24 @@
-
+#V2
 import time
 from django.http import JsonResponse
 from django.db import connection
 
+from perfmetrics.utils import run_sql_logged_return_timed  # <-- add
+def run_timed_with_opt(sql: str, view_name: str, optimized: bool):
+    # Call perfmetrics timed runner but with correct label including opt flag
+    from perfmetrics.utils import run_sql_logged_return_timed
+    label = f"V2.{view_name}{'.opt' if optimized else ''}"
+    return run_sql_logged_return_timed(sql=sql, label=label, view_name=view_name, optimized=optimized)
+
+
 def run_sql_timed(sql: str, params=None):
-    t0 = time.monotonic()
-    with connection.cursor() as cur:
-        cur.execute(sql, params or [])
-        cols = [c[0] for c in cur.description]
-        rows = cur.fetchall()
-    elapsed_ms = (time.monotonic() - t0) * 1000.0
-    data = [dict(zip(cols, r)) for r in rows]
-    return {"elapsed_ms": round(elapsed_ms, 2), "rows": len(data), "data": data}
+    # Preserve V2 response shape; log internally
+    import inspect
+    caller = inspect.stack()[1].function  # view function name
+    # optimized is derived from querystring by callers; we detect it inside views and pass in
+    # To keep signature identical, we detect optimized flag later; so we wrap below in each view.
+    # Here we just run without optimized flag. Views will override via a small wrapper.
+    return run_sql_logged_return_timed(sql=sql, label=f"V2.{caller}", view_name=caller, optimized=False, params=params)
 
 def tbl(name: str, optimized: bool):
     if optimized:
@@ -31,8 +38,7 @@ def daily_trips(request):
     GROUP BY d
     ORDER BY d
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "daily_trips", optimized))
 def avg_fare_by_vendor(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -42,8 +48,7 @@ def avg_fare_by_vendor(request):
     GROUP BY vendor_id
     ORDER BY avg_fare DESC
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "avg_fare_by_vendor", optimized))
 def total_distance_by_pickup(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -54,8 +59,7 @@ def total_distance_by_pickup(request):
     ORDER BY total_miles DESC
     LIMIT 50
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "total_distance_by_pickup", optimized))
 def avg_tip_by_payment(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -65,8 +69,7 @@ def avg_tip_by_payment(request):
     GROUP BY payment_type
     ORDER BY avg_tip DESC
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "avg_tip_by_payment", optimized))
 def monthly_revenue_by_dropoff(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -77,8 +80,7 @@ def monthly_revenue_by_dropoff(request):
     ORDER BY month, revenue DESC
     LIMIT 500
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "monthly_revenue_by_dropoff", optimized))
 def rolling_7day_avg_trips(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -93,8 +95,7 @@ def rolling_7day_avg_trips(request):
     FROM daily
     ORDER BY d
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "rolling_7day_avg_trips", optimized))
 def top10_pairs_by_revenue(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -105,8 +106,7 @@ def top10_pairs_by_revenue(request):
     ORDER BY revenue DESC
     LIMIT 10
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "top10_pairs_by_revenue", optimized))
 def daily_p90_distance(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -119,8 +119,7 @@ def daily_p90_distance(request):
     GROUP BY d
     ORDER BY d
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "daily_p90_distance", optimized))
 def neighborhood_tip_ranking(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -133,8 +132,7 @@ def neighborhood_tip_ranking(request):
     ORDER BY tip_ratio DESC
     LIMIT 50
     """
-    return JsonResponse(run_sql_timed(sql))
-
+    return JsonResponse(run_timed_with_opt(sql, "neighborhood_tip_ranking", optimized))
 def vendor_95th_percentile_days(request):
     optimized = request.GET.get("optimized") == "1"
     t = tbl("trip", optimized)
@@ -155,4 +153,4 @@ def vendor_95th_percentile_days(request):
     WHERE dv.trips > p.p95
     ORDER BY dv.d, dv.trips DESC
     """
-    return JsonResponse(run_sql_timed(sql))
+    return JsonResponse(run_timed_with_opt(sql, "vendor_95th_percentile_days", optimized))

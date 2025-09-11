@@ -1,13 +1,18 @@
-
+# V1
 from django.http import JsonResponse
 from django.db import connection
 
+from perfmetrics.utils import run_sql_logged_return_data  # <-- add
+
 def run_sql(sql: str, params=None):
-    with connection.cursor() as cur:
-        cur.execute(sql, params or [])
-        cols = [c[0] for c in cur.description]
-        rows = cur.fetchall()
-    return [dict(zip(cols, r)) for r in rows]
+    # Keep the old V1 JSON shape; just log internally
+    # Label will be like "V1.<view_name>"
+    import inspect
+    caller = inspect.stack()[1].function  # view function name
+    label = f"V1.{caller}"
+    data = run_sql_logged_return_data(sql=sql, label=label, view_name=caller, optimized=False, params=params)
+    return data
+
 
 def daily_trips(request):
     sql = """
